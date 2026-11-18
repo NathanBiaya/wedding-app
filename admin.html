@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Administration - Gestion du Mariage</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Supabase JS Client CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body class="bg-slate-50 min-h-screen font-sans">
+
+    <!-- HEADER / NAVIGATION -->
+    <header class="bg-indigo-600 text-white shadow-md">
+        <div class="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
+            <h1 class="text-xl font-bold">💍 Espace Organisateur</h1>
+            <div id="auth-status" class="text-sm"></div>
+        </div>
+    </header>
+
+    <!-- SECTION AUTHENTIFICATION -->
+    <div id="login-section" class="max-w-md mx-auto mt-16 p-6 bg-white rounded-xl shadow-lg">
+        <h2 class="text-2xl font-bold mb-6 text-slate-800 text-center">Connexion Admin</h2>
+        <form id="login-form" class="space-y-4">
+            <div>
+                <label class="block text-sm font-medium text-slate-700">Email</label>
+                <input type="email" id="email" required class="w-full mt-1 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-slate-700">Mot de passe</label>
+                <input type="password" id="password" required class="w-full mt-1 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
+            </div>
+            <button type="submit" class="w-full bg-indigo-600 text-white py-2 rounded-lg font-semibold hover:bg-indigo-700 transition">Se connecter</button>
+        </form>
+        <p id="login-error" class="text-red-500 text-sm mt-3 text-center hidden"></p>
+    </div>
+
+    <!-- DASHBOARD ADMINISTRATEUR -->
+    <main id="admin-dashboard" class="max-w-7xl mx-auto px-4 py-8 hidden space-y-8">
+        
+        <!-- SECTION ÉVÉNEMENT -->
+        <div class="bg-white rounded-xl shadow p-6">
+            <h2 class="text-lg font-bold text-slate-800 mb-4">📅 Mon Événement</h2>
+            <div id="event-info" class="text-slate-600">Chargement...</div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <!-- SECTION CRÉER UNE TABLE -->
+            <div class="bg-white rounded-xl shadow p-6">
+                <h2 class="text-lg font-bold text-slate-800 mb-4">🍽️ Créer une Table</h2>
+                <form id="add-table-form" class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700">Nom de la table</label>
+                        <input type="text" id="table-name" required class="w-full mt-1 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="Ex: Table VIP ou Table 1">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700">Capacité max</label>
+                        <input type="number" id="table-capacity" min="1" value="8" required class="w-full mt-1 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
+                    </div>
+                    <button type="submit" class="w-full bg-indigo-600 text-white py-2 rounded-lg font-semibold hover:bg-indigo-700 transition">Ajouter la table</button>
+                </form>
+                <div id="tables-list" class="mt-4 flex flex-wrap gap-2">
+                    <!-- Liste des tables existantes affichées ici -->
+                </div>
+            </div>
+
+            <!-- SECTION AJOUTER UN INVITÉ -->
+            <div class="bg-white rounded-xl shadow p-6">
+                <h2 class="text-lg font-bold text-slate-800 mb-4">➕ Ajouter un Nouvel Invité</h2>
+                <form id="add-guest-form" class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700">Nom complet</label>
+                        <input type="text" id="guest-name" required class="w-full mt-1 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="Ex: Jean Dupont">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700">Téléphone ou Email</label>
+                        <input type="text" id="guest-contact" class="w-full mt-1 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="Ex: +33612345678">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700">Accompagnants max</label>
+                        <input type="number" id="guest-companions" min="0" value="0" class="w-full mt-1 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
+                    </div>
+                    <button type="submit" class="w-full bg-green-600 text-white py-2 rounded-lg font-semibold hover:bg-green-700 transition">Créer l'invité</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- LISTE DES INVITÉS -->
+        <div class="bg-white rounded-xl shadow p-6">
+            <h2 class="text-lg font-bold text-slate-800 mb-4">📋 Liste des Invités & Assignation des Tables</h2>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="border-b text-slate-500 text-sm">
+                            <th class="py-3 px-4">Nom</th>
+                            <th class="py-3 px-4">RSVP</th>
+                            <th class="py-3 px-4">Table assignée</th>
+                            <th class="py-3 px-4">Statut Jour J</th>
+                            <th class="py-3 px-4">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="guests-table-body" class="text-slate-700 text-sm">
+                        <!-- Injecté dynamiquement en JS -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+
+    <!-- LOGIQUE JAVASCRIPT -->
+    <script>
+        const SUPABASE_URL = 'https://ginzxpneasqsmxpnpjjz.supabase.co';
+        const SUPABASE_ANON_KEY = 'sb_publishable_IP_PwNBO095yPbPg6Me-fw_iPiVj-IP';
+        
+        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        let currentEventId = null;
+        let availableTables = [];
+
+        // Gestion Connexion
+        document.getElementById('login-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const errorEl = document.getElementById('login-error');
+
+            const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+            if (error) {
+                errorEl.textContent = "Erreur : " + error.message;
+                errorEl.classList.remove('hidden');
+            } else {
+                errorEl.classList.add('hidden');
+                checkAuthAndLoad();
+            }
+        });
+
+        async function checkAuthAndLoad() {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (session) {
+                document.getElementById('login-section').classList.add('hidden');
+                document.getElementById('admin-dashboard').classList.remove('hidden');
+                document.getElementById('auth-status').innerHTML = `Connecté | <button onclick="logout()" class="underline ml-2">Déconnexion</button>`;
+                loadAppData();
+            } else {
+                document.getElementById('login-section').classList.remove('hidden');
+                document.getElementById('admin-dashboard').classList.add('hidden');
+            }
+        }
+
+        async function logout() {
+            await supabaseClient.auth.signOut();
+            location.reload();
+        }
+
+        async function loadAppData() {
+            const { data: events } = await supabaseClient.from('events').select('*').limit(1);
+            if (!events || events.length === 0) return;
+
+            const event = events[0];
+            currentEventId = event.id;
+
+            document.getElementById('event-info').innerHTML = `
+                <p><strong>${event.event_type}</strong> (${event.couple_names}) le ${event.event_date} à ${event.event_time}</p>
+                <p><strong>Lieu :</strong> ${event.venue_name} - ${event.venue_address}</p>
+            `;
+
+            await loadTables();
+            await loadGuests();
+        }
+
+        // Charger les tables
+        async function loadTables() {
+            const { data: tables } = await supabaseClient.from('tables').select('*').eq('event_id', currentEventId);
+            availableTables = tables || [];
+            
+            const listEl = document.getElementById('tables-list');
+            listEl.innerHTML = '';
+            if (availableTables.length === 0) {
+                listEl.innerHTML = `<span class="text-slate-400 text-xs">Aucune table créée pour l'instant.</span>`;
+                return;
+            }
+
+            availableTables.forEach(t => {
+                listEl.innerHTML += `<span class="bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full text-xs font-semibold border border-indigo-100">${t.name || t.table_name} (Max: ${t.capacity})</span>`;
+            });
+        }
+
+        // Créer une table
+        document.getElementById('add-table-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const table_name = document.getElementById('table-name').value;
+            const capacity = parseInt(document.getElementById('table-capacity').value);
+
+            const { error } = await supabaseClient.from('tables').insert([{ event_id: currentEventId, table_name, capacity }]);
+            if (error) {
+                alert("Erreur : " + error.message);
+            } else {
+                document.getElementById('add-table-form').reset();
+                loadTables();
+                loadGuests();
+            }
+        });
+
+        // Ajouter un invité
+        document.getElementById('add-guest-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const full_name = document.getElementById('guest-name').value;
+            const phone_or_email = document.getElementById('guest-contact').value;
+            const max_companions = parseInt(document.getElementById('guest-companions').value);
+
+            const { error } = await supabaseClient.from('guests').insert([{ event_id: currentEventId, full_name, phone_or_email, max_companions }]);
+            if (error) {
+                alert("Erreur : " + error.message);
+            } else {
+                document.getElementById('add-guest-form').reset();
+                loadGuests();
+            }
+        });
+
+        // Charger les invités avec menu déroulant pour les tables
+        async function loadGuests() {
+            const { data: guests } = await supabaseClient.from('guests').select('*').eq('event_id', currentEventId).order('created_at', { ascending: false });
+            const tbody = document.getElementById('guests-table-body');
+            tbody.innerHTML = '';
+
+            if (!guests || guests.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" class="py-4 text-center text-slate-400">Aucun invité.</td></tr>`;
+                return;
+            }
+
+            const baseUrl = window.location.origin + window.location.pathname.replace('admin.html', 'index.html');
+
+            guests.forEach(guest => {
+                const uniqueLink = `${baseUrl}?id=${guest.id}`;
+                
+                let rsvpBadge = `<span class="px-2 py-1 bg-amber-100 text-amber-800 rounded text-xs">En attente</span>`;
+                if (guest.rsvp_status === 'confirmed') rsvpBadge = `<span class="px-2 py-1 bg-green-100 text-green-800 rounded text-xs">Confirmé (${guest.confirmed_companions} acc.)</span>`;
+                if (guest.rsvp_status === 'declined') rsvpBadge = `<span class="px-2 py-1 bg-red-100 text-red-800 rounded text-xs">Décliné</span>`;
+
+                let checkinBadge = guest.checked_in ? `<span class="text-green-600 font-bold">✓ Présent</span>` : `<span class="text-slate-400">Attendu</span>`;
+
+                // Construction du select des tables
+                let tableSelectHtml = `<select onchange="assignTable('${guest.id}', this.value)" class="border rounded px-2 py-1 text-xs outline-none focus:ring-1 focus:ring-indigo-500">`;
+                tableSelectHtml += `<option value="">-- Aucune table --</option>`;
+                availableTables.forEach(t => {
+                    const selected = guest.table_id === t.id ? 'selected' : '';
+                    tableSelectHtml += `<option value="${t.id}" ${selected}>${t.table_name}</option>`;
+                });
+                tableSelectHtml += `</select>`;
+
+                const tr = document.createElement('tr');
+                tr.classList.add('border-b', 'hover:bg-slate-50');
+                tr.innerHTML = `
+                    <td class="py-3 px-4 font-medium">${guest.full_name}</td>
+                    <td class="py-3 px-4">${rsvpBadge}</td>
+                    <td class="py-3 px-4">${tableSelectHtml}</td>
+                    <td class="py-3 px-4">${checkinBadge}</td>
+                    <td class="py-3 px-4 space-x-2">
+                        <button onclick="navigator.clipboard.writeText('${uniqueLink}'); alert('Lien copié !');" class="bg-indigo-50 text-indigo-600 px-3 py-1 rounded text-xs font-semibold hover:bg-indigo-100 transition">📋 Copier lien</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // Assigner une table à un invité en direct
+        async function assignTable(guestId, tableId) {
+            const targetTableId = tableId === "" ? null : tableId;
+            const { error } = await supabaseClient.from('guests').update({ table_id: targetTableId }).eq('id', guestId);
+            if (error) {
+                alert("Erreur lors de l'assignation de la table : " + error.message);
+            }
+        }
+
+        checkAuthAndLoad();
+    </script>
+</body>
+</html>

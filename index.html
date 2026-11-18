@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Invitation - Mariage</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Supabase JS Client CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- QRCode.js CDN pour générer le QR code -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+</head>
+<body class="bg-slate-100 min-h-screen flex flex-col items-center justify-center p-4">
+
+    <!-- CONTENEUR PRINCIPAL DE L'INVITATION -->
+    <div id="invitation-card" class="max-w-xl w-full bg-white rounded-2xl shadow-xl overflow-hidden p-8 text-center">
+        <div id="loading" class="text-slate-500 py-12">Chargement de votre invitation...</div>
+        
+        <!-- Contenu injecté dynamiquement par JavaScript -->
+        <div id="content" class="hidden">
+            <span class="text-indigo-600 font-semibold uppercase tracking-wider text-sm" id="event-type">Mariage</span>
+            <h1 class="text-3xl md:text-4xl font-bold text-slate-800 mt-2 mb-4" id="couple-names">Chargement...</h1>
+            
+            <p class="text-slate-600 italic mb-6 bg-slate-50 p-4 rounded-xl border border-slate-100" id="welcome-message">
+                "Message de bienvenue..."
+            </p>
+
+            <div class="space-y-3 text-left bg-indigo-50 p-6 rounded-xl mb-6 text-slate-700">
+                <p>📅 <strong>Date :</strong> <span id="event-date"></span> à <span id="event-time"></span></p>
+                <p>📍 <strong>Lieu :</strong> <span id="venue-name"></span></p>
+                <p>🗺️ <strong>Adresse :</strong> <span id="venue-address"></span> 
+                    <a id="map-link" href="#" target="_blank" class="text-indigo-600 underline text-sm ml-1">(Itinéraire Google Maps)</a>
+                </p>
+                <p>👗 <strong>Dress Code :</strong> <span id="dress-code"></span></p>
+                <p>⏰ <strong>Date limite RSVP :</strong> <span id="rsvp-deadline"></span></p>
+            </div>
+
+            <!-- SECTION PERSONNELLE DE L'INVITÉ -->
+            <div class="border-t pt-6 mb-6">
+                <h2 class="text-xl font-bold text-slate-800 mb-2">Bienvenue, <span id="guest-name" class="text-indigo-600"></span> !</h2>
+                <div id="table-info" class="mb-4 text-slate-600 font-medium"></div>
+
+                <!-- FORMULAIRE RSVP -->
+                <div id="rsvp-section" class="bg-slate-50 p-4 rounded-xl text-left">
+                    <h3 class="font-bold text-slate-800 mb-3 text-center">Confirmez votre présence</h3>
+                    <form id="rsvp-form" class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1">Votre réponse :</label>
+                            <select id="rsvp-status" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
+                                <option value="confirmed">Je serai présent(e)</option>
+                                <option value="declined">Je ne pourrai pas y assister</option>
+                            </select>
+                        </div>
+                        <div id="companions-container">
+                            <label class="block text-sm font-medium text-slate-700 mb-1">Nombre d'accompagnants (Max : <span id="max-comp-label">0</span>) :</label>
+                            <input type="number" id="confirmed-companions" min="0" value="0" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1">Allergies ou régimes alimentaires particuliers :</label>
+                            <input type="text" id="dietary-notes" placeholder="Ex: Végétarien, allergie aux arachides..." class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
+                        </div>
+                        <button type="submit" class="w-full bg-indigo-600 text-white py-2 rounded-lg font-semibold hover:bg-indigo-700 transition">Enregistrer ma réponse</button>
+                    </form>
+                    <div id="rsvp-success" class="hidden text-green-600 font-semibold text-center mt-3">✓ Votre réponse a bien été enregistrée !</div>
+                </div>
+            </div>
+
+            <!-- SECTION QR CODE (Affichée si la table est assignée) -->
+            <div id="qrcode-container" class="hidden border-t pt-6 flex flex-col items-center">
+                <h3 class="text-lg font-bold text-slate-800 mb-2">Votre Billet / QR Code d'accès</h3>
+                <p class="text-sm text-slate-500 mb-4">Présentez ce QR Code à l'entrée le jour de l'événement.</p>
+                <div id="qrcode" class="p-3 bg-white border rounded-xl shadow-sm inline-block"></div>
+            </div>
+        </div>
+
+        <div id="error-message" class="hidden text-red-500 py-6 font-semibold"></div>
+    </div>
+
+    <!-- LOGIQUE JAVASCRIPT DE L'INVITATION -->
+    <script>
+        // 1. CONFIGURATION SUPABASE (Mêmes clés que dans admin.html)
+        const SUPABASE_URL = 'https://ginzxpneasqsmxpnpjjz.supabase.co';
+        const SUPABASE_ANON_KEY = 'sb_publishable_IP_PwNBO095yPbPg6Me-fw_iPiVj-IP';
+        
+        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        // 2. RÉCUPÉRATION DE L'ID DANS L'URL (ex: index.html?id=1234-abcd...)
+        const urlParams = new URLSearchParams(window.location.search);
+        const guestId = urlParams.get('id');
+
+        async function loadInvitation() {
+            const loadingEl = document.getElementById('loading');
+            const contentEl = document.getElementById('content');
+            const errorEl = document.getElementById('error-message');
+
+            if (!guestId) {
+                loadingEl.classList.add('hidden');
+                errorEl.textContent = "Lien d'invitation invalide ou manquant.";
+                errorEl.classList.remove('hidden');
+                return;
+            }
+
+            // 3. REQUÊTE SUPABASE : Récupérer l'invité et sa table associée
+            const { data: guest, error: guestError } = await supabaseClient
+                .from('guests')
+                .select('*, tables(table_name)')
+                .eq('id', guestId)
+                .single();
+
+            if (guestError || !guest) {
+                loadingEl.classList.add('hidden');
+                errorEl.textContent = "Invité introuvable dans notre système.";
+                errorEl.classList.remove('hidden');
+                return;
+            }
+
+            // 4. REQUÊTE SUPABASE : Récupérer les infos de l'événement lié
+            const { data: event, error: eventError } = await supabaseClient
+                .from('events')
+                .select('*')
+                .eq('id', guest.event_id)
+                .single();
+
+            if (eventError || !event) {
+                loadingEl.classList.add('hidden');
+                errorEl.textContent = "Événement introuvable.";
+                errorEl.classList.remove('hidden');
+                return;
+            }
+
+            // 5. INJECTION DES DONNÉES DANS LE HTML
+            document.getElementById('event-type').textContent = event.event_type;
+            document.getElementById('couple-names').textContent = event.couple_names;
+            document.getElementById('welcome-message').textContent = `"${event.welcome_message}"`;
+            document.getElementById('event-date').textContent = event.event_date;
+            document.getElementById('event-time').textContent = event.event_time;
+            document.getElementById('venue-name').textContent = event.venue_name;
+            document.getElementById('venue-address').textContent = event.venue_address;
+            document.getElementById('dress-code').textContent = event.dress_code || 'Non spécifié';
+            document.getElementById('rsvp-deadline').textContent = event.rsvp_deadline || 'Non spécifiée';
+
+            // Lien Google Maps dynamique basé sur l'adresse
+            const encodedAddress = encodeURIComponent(event.venue_address);
+            document.getElementById('map-link').href = `https://www.google.com/maps/search/?api=1&query=${encodedAddress}`;
+
+            // Infos spécifiques à l'invité
+            document.getElementById('guest-name').textContent = guest.full_name;
+            document.getElementById('max-comp-label').textContent = guest.max_companions;
+            document.getElementById('confirmed-companions').max = guest.max_companions;
+            
+            // Pré-remplir le formulaire si déjà répondu
+            if (guest.rsvp_status !== 'pending') {
+                document.getElementById('rsvp-status').value = guest.rsvp_status;
+                document.getElementById('confirmed-companions').value = guest.confirmed_companions;
+                document.getElementById('dietary-notes').value = guest.dietary_notes || '';
+            }
+
+            // Gestion de l'affichage de la table et du QR Code
+            const tableInfoEl = document.getElementById('table-info');
+            const qrcodeContainer = document.getElementById('qrcode-container');
+
+            if (guest.tables && guest.tables.table_name) {
+                tableInfoEl.innerHTML = `🎯 Votre table attribuée : <span class="font-bold text-indigo-600 text-lg">${guest.tables.table_name}</span>`;
+                
+                // Générer le QR Code avec l'ID de l'invité (utilisé par le scanner le jour J)
+                document.getElementById('qrcode').innerHTML = ""; // Nettoyer si déjà généré
+                new QRCode(document.getElementById("qrcode"), {
+                    text: guest.id,
+                    width: 180,
+                    height: 180
+                });
+                qrcodeContainer.classList.remove('hidden');
+            } else {
+                tableInfoEl.innerHTML = `🎯 Votre numéro de table vous sera communiqué prochainement par les mariés.`;
+            }
+
+            // Afficher le contenu de la carte
+            loadingEl.classList.add('hidden');
+            contentEl.classList.remove('hidden');
+
+            // 6. GESTION DE LA SOUMMISSION DU RSVP
+            document.getElementById('rsvp-form').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                
+                const rsvp_status = document.getElementById('rsvp-status').value;
+                const confirmed_companions = parseInt(document.getElementById('confirmed-companions').value) || 0;
+                const dietary_notes = document.getElementById('dietary-notes').value;
+
+                if (confirmed_companions > guest.max_companions) {
+                    alert(`Vous ne pouvez pas dépasser le nombre maximum d'accompagnants autorisé (${guest.max_companions}).`);
+                    return;
+                }
+
+                const { error: updateError } = await supabaseClient
+                    .from('guests')
+                    .update({ rsvp_status, confirmed_companions, dietary_notes })
+                    .eq('id', guestId);
+
+                if (updateError) {
+                    alert("Erreur lors de l'enregistrement : " + updateError.message);
+                } else {
+                    document.getElementById('rsvp-success').classList.remove('hidden');
+                    setTimeout(() => {
+                        document.getElementById('rsvp-success').classList.add('hidden');
+                    }, 4000);
+                }
+            });
+        }
+
+        // Lancer le chargement au démarrage de la page
+        loadInvitation();
+    </script>
+</body>
+</html>
